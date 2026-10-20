@@ -17,19 +17,23 @@ function optHTML(st){
 }
 function countHTML(){
  const chosen=selected[current]||[];
- return '<div class="person-grid">'+Array.from({length:10},(_,i)=>'<button type="button" data-person="'+i+'" class="person'+(chosen.includes(i)?' selected':'')+'" '+(isConfirmed()?'disabled':'')+' aria-label="Persona consultada '+(i+1)+'" aria-pressed="'+chosen.includes(i)+'"><span aria-hidden="true" class="student-avatar"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="10" r="6"/><path d="M3 30v-3c0-7 5-11 13-11s13 4 13 11v3z"/></svg></span><small>'+(i+1)+'</small></button>').join('')+'</div><div class="count" role="status">'+chosen.length+' DE 10 TARJETAS MARCADAS</div>';
+ return '<div class="person-grid">'+Array.from({length:10},(_,i)=>'<button type="button" data-person="'+i+'" class="person'+(chosen.includes(i)?' selected':'')+'" '+(isConfirmed()?'disabled':'')+' aria-label="Persona consultada '+(i+1)+'" aria-pressed="'+chosen.includes(i)+'"><span class="student-avatar" aria-hidden="true"><img src="../assets/${["mora","mati","mari"][i%3]}.png" alt=""></span><small>'+(i+1)+'</small></button>').join('')+'</div><div class="count" role="status">'+chosen.length+' DE 10 TARJETAS MARCADAS</div>';
 }
 function factHTML(st){return '<div class="facts">'+st.facts.map(([big,txt])=>'<div class="fact"><strong>'+escapeText(big)+'</strong><span>'+escapeText(txt)+'</span></div>').join('')+'</div>'+(st.bottom?'<div class="bottom-note">'+escapeText(st.bottom)+'</div>':'');}
 function getFeedback(st){
- const result=checked[current]; if(!result)return '';
- const type=result.good?'good':result.neutral?'':'try';
- let msg=st.feedback||'';
- if(!result.good&&!result.neutral){
-  if(st.type==='single')msg='PARA REVISAR: '+msg+' LA OPCIÓN ADECUADA ES: «'+st.options[st.correct]+'».';
-  else if(st.type==='multi')msg='PARA REVISAR: '+msg+' RESPUESTAS QUE CORRESPONDEN: '+st.correct.map(i=>st.options[i]).join(' · ')+'.';
- }
- return '<div class="feedback '+type+'" role="status">'+escapeText(msg)+'</div>';
+ const result=checked[current];if(!result)return '';
+ const cls=result.neutral?'':result.good?'good':'try';
+ let msg=result.neutral?'Es tu primera impresión; ahora vamos a investigar los datos.':result.good?(st.feedback||'¡Bien pensado!'):'Revisá qué datos tenemos y qué podemos afirmar con seguridad. Podés volver a intentarlo.';
+ return '<div class="feedback '+cls+'" role="status">'+(result.neutral?'💡':result.good?'⭐':'🔎')+' '+escapeText(msg)+'</div>';
 }
+function playTone(good=true){
+ if(!window._queondaAudioOn)return;
+ try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+ const ctx=window._queondaAC||(window._queondaAC=new AC());const t=ctx.currentTime;
+ (good?[523,659,784]:[300,230]).forEach((f,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=f;g.gain.setValueAtTime(.0001,t+i*.11);g.gain.exponentialRampToValueAtTime(.065,t+i*.11+.025);g.gain.exponentialRampToValueAtTime(.0001,t+i*.11+.17);o.connect(g);g.connect(ctx.destination);o.start(t+i*.11);o.stop(t+i*.11+.18);});}catch(e){}
+}
+function saveCompleted(){try{let k=JSON.parse(localStorage.getItem('queonda-logros')||'{}');k[String(Number(SETTINGS.gameNo))]=true;localStorage.setItem('queonda-logros',JSON.stringify(k));}catch(e){}}
+
 function render(){
  const st=STEPS[current], done=isConfirmed();
  $('game-num').textContent=SETTINGS.gameNo;
@@ -50,15 +54,15 @@ function render(){
   if(done)panel+='<div class="model"><strong>EJEMPLO DE REESCRITURA</strong>'+escapeText(st.model)+'</div>';
  }
  if(notes[current]&&!done)panel+='<div class="feedback try" role="status">'+escapeText(notes[current])+'</div>';
- panel+=getFeedback(st);
- if(st.type==='outro')panel+='<div class="finish">¡DESAFÍO COMPLETADO!</div>';
+ panel+=getFeedback(st); if(checked[current]&&!checked[current].good&&!checked[current].neutral)panel+='<div class="retry-row"><button type="button" class="secondary" id="retry">↻ INTENTAR DE NUEVO</button></div>';
+ if(st.type==='outro')panel+='<div class="finish">⭐ ¡DESAFÍO COMPLETADO!</div>';if(current===STEPS.length-1&&(done||st.type==='outro')){panel+='<div class="mission-complete">🏆 ¡Misión cumplida! Volvé a la prueba piloto para seguir jugando.</div>';saveCompleted();}
  panel+='<div class="controls">';
  if(current>0)panel+='<button class="secondary" type="button" id="back">VOLVER</button>';
  if(done||['reveal','outro'].includes(st.type)){
-  panel+='<button class="action" type="button" id="next">'+(current===STEPS.length-1?'VOLVER A JUGAR':'CONTINUAR')+'</button>';
+  panel+='<button class="action" type="button" id="next">'+(current===STEPS.length-1?'↻ REPETIR MISIÓN':'CONTINUAR')+'</button>';
  }else{
   const label=st.type==='poll'?'CONTINUAR SIN CALIFICACIÓN':st.type==='counter'?'COMPROBAR 8 DE 10':st.type==='rewrite'?'VER EJEMPLO DE REESCRITURA':'COMPROBAR RESPUESTA';
-  const hasSelection=(st.type==='rewrite')||((selected[current]||[]).length>0)||(typeof selected[current]==='number');
+  const hasSelection=(st.type==='rewrite'?rewriteText.trim().length>=10:((selected[current]||[]).length>0)||(typeof selected[current]==='number'));
   panel+='<button class="action" type="button" id="check" '+(!hasSelection?'disabled':'')+'>'+label+'</button>';
  }
  panel+='</div>';
@@ -78,7 +82,8 @@ function render(){
   if(values.length>10)values.length=10;
   selected[current]=values;delete notes[current];render();
  });
- const rewrite=$('rewrite'); if(rewrite)rewrite.oninput=(e)=>{rewriteText=e.target.value};
+ const rewrite=$('rewrite'); if(rewrite)rewrite.oninput=(e)=>{rewriteText=e.target.value;const check=$('check');if(check)check.disabled=e.target.value.trim().length<10};
+ if($('retry'))$('retry').onclick=()=>{delete checked[current];delete selected[current];delete notes[current];render();scrollToTop();};
  if($('back'))$('back').onclick=()=>{current=Math.max(0,current-1);render();scrollToTop()};
  if($('next'))$('next').onclick=()=>{
   if(current===STEPS.length-1){current=0;Object.keys(selected).forEach(k=>delete selected[k]);Object.keys(checked).forEach(k=>delete checked[k]);Object.keys(notes).forEach(k=>delete notes[k]);rewriteText='';}
@@ -94,8 +99,13 @@ function render(){
    if((selected[current]||[]).length!==st.target){notes[current]='SELECCIONÁ EXACTAMENTE OCHO DE LAS DIEZ TARJETAS Y VOLVÉ A INTENTAR.';render();return;}
   }
   if(st.type==='rewrite')rewriteText=($('rewrite')?.value||'');
-  checked[current]={good,neutral};delete notes[current];render();scrollToTop();
+  checked[current]={good,neutral};delete notes[current];playTone(good);render();scrollToTop();
  };
 }
 function scrollToTop(){try{window.scrollTo({top:0,behavior:'smooth'})}catch(e){}}
+const soundButton=document.createElement('button');
+soundButton.className='sound-switch';soundButton.type='button';soundButton.textContent='🔈 SONIDO';
+soundButton.setAttribute('aria-pressed','false');
+soundButton.onclick=()=>{window._queondaAudioOn=!window._queondaAudioOn;soundButton.textContent=window._queondaAudioOn?'🔊 SONIDO ON':'🔈 SONIDO';soundButton.setAttribute('aria-pressed',String(!!window._queondaAudioOn));if(window._queondaAudioOn)playTone(true)};
+document.querySelector('.meta')?.appendChild(soundButton);
 render();
