@@ -17,7 +17,7 @@ function optHTML(st){
 }
 function countHTML(){
  const chosen=selected[current]||[];
- return '<div class="person-grid">'+Array.from({length:10},(_,i)=>'<button type="button" data-person="'+i+'" class="person'+(chosen.includes(i)?' selected':'')+'" '+(isConfirmed()?'disabled':'')+' aria-label="Persona consultada '+(i+1)+'" aria-pressed="'+chosen.includes(i)+'"><span class="student-avatar" aria-hidden="true"><img src="../assets/${["mora","mati","mari"][i%3]}.png" alt=""></span><small>'+(i+1)+'</small></button>').join('')+'</div><div class="count" role="status">'+chosen.length+' DE 10 TARJETAS MARCADAS</div>';
+ return '<div class="person-grid">'+Array.from({length:10},(_,i)=>'<button type="button" data-person="'+i+'" class="person'+(chosen.includes(i)?' selected':'')+'" '+(isConfirmed()?'disabled':'')+' aria-label="Persona consultada '+(i+1)+'" aria-pressed="'+chosen.includes(i)+'"><span class="student-avatar" aria-hidden="true"><img src="../assets/' +["mora","mati","mari"][i%3]+ '.png" alt=""></span><small>'+(i+1)+'</small></button>').join('')+'</div><div class="count" role="status">'+chosen.length+' DE 10 TARJETAS MARCADAS</div>';
 }
 function factHTML(st){return '<div class="facts">'+st.facts.map(([big,txt])=>'<div class="fact"><strong>'+escapeText(big)+'</strong><span>'+escapeText(txt)+'</span></div>').join('')+'</div>'+(st.bottom?'<div class="bottom-note">'+escapeText(st.bottom)+'</div>':'');}
 function getFeedback(st){
